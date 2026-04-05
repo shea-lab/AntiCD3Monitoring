@@ -1,11 +1,32 @@
-pacman::p_load(tidyverse, plyr, magrittr, stats, dplyr, limma, RColorBrewer, gplots, 
-               glmnet, biomaRt, colorspace, ggplot2, fmsb, car, mixOmics, DESeq2, 
-               apeglm, boot, caret, ggvenn, grid, devtools, reshape2, gridExtra, 
-               factoextra, edgeR, cowplot, pheatmap, coefplot, randomForest, ROCR, 
-               genefilter, Hmisc, rdist, factoextra, ggforce, ggpubr, matrixStats, 
-               GSEAmining, ggrepel, progress, mnormt, psych, igraph, 
-               reactome.db, GSVA, msigdbr, gglasso, MatrixGenerics, VennDiagram, 
-               mikropml, glmnet, scales, stats, caret, nnet, pROC)
+# pacman::p_load(tidyverse, plyr, magrittr, stats, dplyr, limma, RColorBrewer, gplots, 
+#                glmnet, biomaRt, colorspace, ggplot2, fmsb, car, mixOmics, DESeq2, 
+#                apeglm, boot, caret, ggvenn, grid, devtools, reshape2, gridExtra, 
+#                factoextra, edgeR, cowplot, pheatmap, coefplot, randomForest, ROCR, 
+#                genefilter, Hmisc, rdist, factoextra, ggforce, ggpubr, matrixStats, 
+#                GSEAmining, ggrepel, progress, mnormt, psych, igraph, 
+#                reactome.db, GSVA, msigdbr, gglasso, MatrixGenerics, VennDiagram, 
+#                mikropml, glmnet, scales, stats, caret, nnet, pROC)
+# pacman::p_load(tidyverse, plyr, magrittr, stats, dplyr, limma, RColorBrewer, gplots, 
+#                glmnet, biomaRt, colorspace, ggplot2, fmsb, car, mixOmics, DESeq2, 
+#                apeglm, boot, caret, ggvenn, grid, devtools, reshape2, gridExtra, 
+#                factoextra, edgeR, cowplot, pheatmap, coefplot, randomForest, ROCR, 
+#                genefilter, Hmisc, rdist, factoextra, ggforce, ggpubr, matrixStats, 
+#                clusterProfiler, gghalves, GSEABase, GSEAmining, ggrepel, progress, mnormt, psych, igraph, 
+#                reactome.db, GSVA, msigdbr, gglasso, MatrixGenerics, VennDiagram, 
+#                mikropml, glmnet, scales, stats, caret, nnet, pROC)
+
+pacman::p_load(
+  apeglm, biomaRt, boot, car, caret, clusterProfiler, 
+  coefplot, colorspace, cowplot, DESeq2, devtools, 
+  dplyr, edgeR, factoextra, fmsb, genefilter, ggforce, 
+  gghalves, gglasso, ggplot2, ggpubr, ggrepel, ggvenn, 
+  glmnet, gplots, grid, gridExtra, GSEABase, GSEAmining, 
+  GSVA, Hmisc, igraph, limma, magrittr, MatrixGenerics, 
+  matrixStats, mikropml, mixOmics, mnormt, msigdbr, 
+  nnet, pheatmap, plyr, pROC, progress, psych, 
+  randomForest, RColorBrewer, rdist, reactome.db, 
+  reshape2, ROCR, scales, stats, tidyverse, VennDiagram
+)
 
 library(patchwork)
 library(tibble)
@@ -87,35 +108,6 @@ dds_AntiCD3 <- DESeqDataSetFromMatrix(AntiCD3Counts, meta_batch,
 
 saveRDS(dds_AntiCD3, file = "C:/Users/17343/Desktop/AntiCD3Monitoring/Data/RObjects/dds_AntiCD3_master.rds")
 
-# 4a.Compare Anti-CD3 vs Isotype at Day 14 (Design ~ Treatment; Subset Day 14) ----
-# subset samples
-sel <- colData(dds_AntiCD3)$Treatment %in% c("Isotype","Anti-CD3")
-dds_AntiCD3_IsoVsAntiCD3 <- dds_AntiCD3[, sel]
-
-dds_AntiCD3_IsoVsAntiCD3$Treatment <- factor(dds_AntiCD3_IsoVsAntiCD3$Treatment,
-                                             levels = c("Isotype", 
-                                                        "Anti-CD3"))
-levels(dds_AntiCD3_IsoVsAntiCD3$Treatment)
-
-cd <- as.data.frame(colData(dds_AntiCD3_IsoVsAntiCD3))
-# Basic sanity
-lapply(cd[, c("Treatment")], function(x) table(x, useNA="ifany"))
-# Check for NAs
-sapply(cd[, c("Treatment")], function(x) any(is.na(x)))
-# Model matrix rank
-mm <- model.matrix(~ Treatment, data = cd)
-qr(mm)$rank; ncol(mm)             # if rank < ncol(mm), not full rank
-
-# This might not be correct
-table(cd$Group,cd$Day)
-#             14
-# Isotype      5
-# Resistant    8
-# Sensitive    9
-
-keep <- rowSums(counts(dds_AntiCD3_IsoVsAntiCD3) >= 10) >= 5  # Smallest number of samples in a treatment group
-dds_AntiCD3_IsoVsAntiCD3 <- dds_AntiCD3_IsoVsAntiCD3[keep, ]
-
 q_cut  <- 0.10
 fc_cut <- 1
 library(EnhancedVolcano)
@@ -153,6 +145,36 @@ pick_labels <- function(df, q = 0.10, fc = 1, topN = 30) {
   labs[seq_len(min(topN, length(labs)))]
 }
 
+# 4a.Compare Anti-CD3 vs Isotype at Day 14 (Design ~ Treatment; Subset Day 14) ----
+# subset samples
+sel <- colData(dds_AntiCD3)$Treatment %in% c("Isotype","Anti-CD3")
+dds_AntiCD3_IsoVsAntiCD3 <- dds_AntiCD3[, sel]
+
+dds_AntiCD3_IsoVsAntiCD3$Treatment <- factor(dds_AntiCD3_IsoVsAntiCD3$Treatment,
+                                             levels = c("Isotype", 
+                                                        "Anti-CD3"))
+levels(dds_AntiCD3_IsoVsAntiCD3$Treatment)
+
+cd <- as.data.frame(colData(dds_AntiCD3_IsoVsAntiCD3))
+# Basic sanity
+lapply(cd[, c("Treatment")], function(x) table(x, useNA="ifany"))
+# Check for NAs
+sapply(cd[, c("Treatment")], function(x) any(is.na(x)))
+# Model matrix rank
+mm <- model.matrix(~ Treatment, data = cd)
+qr(mm)$rank; ncol(mm)             # if rank < ncol(mm), not full rank
+
+table(cd$Group,cd$Day)
+#             14
+# Isotype      5
+# Resistant    8
+# Sensitive    9
+
+keep <- rowSums(counts(dds_AntiCD3_IsoVsAntiCD3) >= 10) >= 5  # Smallest number of samples in a treatment group
+dds_AntiCD3_IsoVsAntiCD3 <- dds_AntiCD3_IsoVsAntiCD3[keep, ]
+
+
+
 design(dds_AntiCD3_IsoVsAntiCD3) <- ~ Treatment
 dds_AntiCD3_IsoVsAntiCD3 <- DESeq(dds_AntiCD3_IsoVsAntiCD3)
 design(dds_AntiCD3_IsoVsAntiCD3)
@@ -176,7 +198,7 @@ EnhancedVolcano(
   FCcutoff      = 1,
   xlab          = expression("log"[2]*"(Fold Change)"),
   ylab          = expression("-log"[10]*"(FDR)"),
-  title         = "Early vs Late Progessors",
+  title         = "Isotype vs Anti-CD3 Treatmentdr",
   subtitle      = paste0("FDR ≤0.10 & |LFC| ≥1 (n=", sum(d14_IsoVsAntiCD3$padj<0.10 & abs(d14_IsoVsAntiCD3$log2FoldChange)>=1, na.rm=TRUE), ")"),
   xlim          = c(-xmax_d14_IsoVsAntiCD3, xmax_d14_IsoVsAntiCD3),
   ylim = c(0,5),
@@ -209,7 +231,6 @@ sapply(cd[, c("Group")], function(x) any(is.na(x)))
 mm <- model.matrix(~ Group, data = cd)
 qr(mm)$rank; ncol(mm)             # if rank < ncol(mm), not full rank
 
-# This may not be correct
 table(cd$Group,cd$Day)
 #           14
 # Sensitive  9
@@ -241,7 +262,7 @@ EnhancedVolcano(
   FCcutoff      = 1,
   xlab          = expression("log"[2]*"(Fold Change)"),
   ylab          = expression("-log"[10]*"(FDR)"),
-  title         = "Early vs Late Progessors",
+  title         = "Sensitive vs Resistant Group",
   subtitle      = paste0("FDR ≤0.10 & |LFC| ≥1 (n=", sum(d14_SensitiveVsResistant$padj<0.10 & abs(d14_SensitiveVsResistant$log2FoldChange)>=1, na.rm=TRUE), ")"),
   xlim          = c(-xmax_d14_SensitiveVsResistant, xmax_d14_SensitiveVsResistant),
   ylim = c(0,5),
@@ -255,3 +276,89 @@ EnhancedVolcano(
   legendPosition= "right",
   selectLab     = selLab_d14_SensitiveVsResistant
 )
+
+# 5.GSEA Analysis----
+# Paths to your saved results
+IsoVsAntiCD3_path <- "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_IsoVsAntiCD3.csv"
+SensitiveVsResistant_path <- "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_SensitiveVsResistant.csv"
+
+# Import
+IsoVsAntiCD3  <- read.csv(IsoVsAntiCD3_path,  row.names = 1)
+SensitiveVsResistant <- read.csv(SensitiveVsResistant_path, row.names = 1)
+
+# Build ranked gene lists using DESeq2 Wald stat
+lfc_vector_IsoVsAntiCD3  <- IsoVsAntiCD3$stat;  names(lfc_vector_IsoVsAntiCD3)  <- rownames(IsoVsAntiCD3)
+lfc_vector_SensitiveVsResistant <- SensitiveVsResistant$stat; names(lfc_vector_SensitiveVsResistant) <- rownames(SensitiveVsResistant)
+
+# Drop NAs
+lfc_vector_IsoVsAntiCD3 <- lfc_vector_IsoVsAntiCD3[!is.na(lfc_vector_IsoVsAntiCD3)]
+lfc_vector_SensitiveVsResistant <- lfc_vector_SensitiveVsResistant[!is.na(lfc_vector_SensitiveVsResistant)]
+
+# Sort decreasing (required by clusterProfiler::GSEA)
+lfc_vector_IsoVsAntiCD3 <- sort(lfc_vector_IsoVsAntiCD3,  decreasing = TRUE)
+lfc_vector_SensitiveVsResistant <- sort(lfc_vector_SensitiveVsResistant, decreasing = TRUE)
+
+# --- Collect each set and convert into 2-column (gs_name, gene_symbol) ---
+
+# C8
+CellTypeMSigDB_gene_sets <- msigdbr(species="Mus musculus", category="C8")
+mm_c8_sets <- split(CellTypeMSigDB_gene_sets$gene_symbol, CellTypeMSigDB_gene_sets$gs_name)
+mm_c8_df <- data.frame(
+  gs_name = rep(names(mm_c8_sets), sapply(mm_c8_sets, length)),
+  gene_symbol = unlist(mm_c8_sets)
+)
+
+# Hallmark
+hallmark <- msigdbr(species = "Mus musculus", category  = "H")
+mm_h_sets <- split(hallmark$gene_symbol, hallmark$gs_name)
+mm_h_df <- data.frame(
+  gs_name = rep(names(mm_h_sets), sapply(mm_h_sets, length)),
+  gene_symbol = unlist(mm_h_sets)
+)
+
+# KEGG
+kegg_all <- msigdbr(species="Mus musculus", category="C2", subcategory="CP:KEGG_LEGACY")
+mm_kegg_sets <- split(kegg_all$gene_symbol, kegg_all$gs_name)
+mm_kegg_df <- data.frame(
+  gs_name = rep(names(mm_kegg_sets), sapply(mm_kegg_sets, length)),
+  gene_symbol = unlist(mm_kegg_sets)
+)
+
+# Combines C8, Hallmark, and KEGG genes
+mm_all_df <- rbind(mm_c8_df, mm_h_df, mm_kegg_df)
+
+# Isotype Vs AntiCD3 Treatment
+gsea_results_IsoVsAntiCD3 <- GSEA(
+  geneList      = lfc_vector_IsoVsAntiCD3,
+  minGSSize     = 5,
+  maxGSSize     = 500,
+  pvalueCutoff  = 1,
+  eps           = 0,
+  seed          = TRUE,
+  pAdjustMethod = "BH",
+  TERM2GENE     = mm_all_df
+)
+gsea_results_IsoVsAntiCD3_df <- as.data.frame(gsea_results_IsoVsAntiCD3)
+
+# Sensitive vs Resistant Group
+gsea_results_SensitiveVsResistant <- GSEA(
+  geneList      = lfc_vector_SensitiveVsResistant,
+  minGSSize     = 5,
+  maxGSSize     = 500,
+  pvalueCutoff  = 1,
+  eps           = 0,
+  seed          = TRUE,
+  pAdjustMethod = "BH",
+  TERM2GENE     = mm_all_df
+)
+gsea_results_SensitiveVsResistant_df <- as.data.frame(gsea_results_SensitiveVsResistant)
+
+# Full results Isotype Vs AntiCD3 Treatment
+write.csv(gsea_results_IsoVsAntiCD3_df,
+          "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/GSEAResults_IsoVsAntiCD3.csv",
+          row.names = FALSE)
+
+# Full results Sensitive Vs Resistant Group
+write.csv(gsea_results_SensitiveVsResistant_df,
+          "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/GSEAResults_SensitiveVsResistant.csv",
+          row.names = FALSE)
