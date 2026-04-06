@@ -99,7 +99,7 @@ coul_gsva <- colorRampPalette(brewer.pal(11, "PRGn"))(100) # Palette for gsva he
 colSide <- flexiDEG.colors(meta_batch)
 unique_colSide <- unique(colSide)
 
-# 3.Create Univeral DESqEQ Object ----
+# 3.Create Universal DESqEQ Object ----
 AntiCD3Counts <- as.matrix(AntiCD3Counts)
 storage.mode(AntiCD3Counts) <- "integer"
 
@@ -127,8 +127,8 @@ make_keyvals_fdr_fc <- function(df, q = 0.10, fc = 1,
   key[up]   <- col_up
   key[down] <- col_down
   
-  label[up]   <- paste0("Allogeneic-Upregulated")
-  label[down] <- paste0("Syngeneic-Upregulated")
+  label[up]   <- paste0("Upregulated")
+  label[down] <- paste0("Downregulated")
   
   names(key) <- label        # <- legend labels; no NAs
   key
@@ -148,14 +148,14 @@ pick_labels <- function(df, q = 0.10, fc = 1, topN = 30) {
 # 4a.Compare Anti-CD3 vs Isotype at Day 14 (Design ~ Treatment; Subset Day 14) ----
 # subset samples
 sel <- colData(dds_AntiCD3)$Treatment %in% c("Isotype","Anti-CD3")
-dds_AntiCD3_IsoVsAntiCD3 <- dds_AntiCD3[, sel]
+dds_AntiCD3_AntiCD3VsIso <- dds_AntiCD3[, sel]
 
-dds_AntiCD3_IsoVsAntiCD3$Treatment <- factor(dds_AntiCD3_IsoVsAntiCD3$Treatment,
+dds_AntiCD3_AntiCD3VsIso$Treatment <- factor(dds_AntiCD3_AntiCD3VsIso$Treatment,
                                              levels = c("Isotype", 
                                                         "Anti-CD3"))
-levels(dds_AntiCD3_IsoVsAntiCD3$Treatment)
+levels(dds_AntiCD3_AntiCD3VsIso$Treatment)
 
-cd <- as.data.frame(colData(dds_AntiCD3_IsoVsAntiCD3))
+cd <- as.data.frame(colData(dds_AntiCD3_AntiCD3VsIso))
 # Basic sanity
 lapply(cd[, c("Treatment")], function(x) table(x, useNA="ifany"))
 # Check for NAs
@@ -170,37 +170,35 @@ table(cd$Group,cd$Day)
 # Resistant    8
 # Sensitive    9
 
-keep <- rowSums(counts(dds_AntiCD3_IsoVsAntiCD3) >= 10) >= 5  # Smallest number of samples in a treatment group
-dds_AntiCD3_IsoVsAntiCD3 <- dds_AntiCD3_IsoVsAntiCD3[keep, ]
+keep <- rowSums(counts(dds_AntiCD3_AntiCD3VsIso) >= 10) >= 5  # Smallest number of samples in a treatment group
+dds_AntiCD3_AntiCD3VsIso <- dds_AntiCD3_AntiCD3VsIso[keep, ]
 
+design(dds_AntiCD3_AntiCD3VsIso) <- ~ Treatment
+dds_AntiCD3_AntiCD3VsIso <- DESeq(dds_AntiCD3_AntiCD3VsIso)
+design(dds_AntiCD3_AntiCD3VsIso)
+resultsNames(dds_AntiCD3_AntiCD3VsIso)
+res_AntiCD3VsIso <- results(dds_AntiCD3_AntiCD3VsIso,
+                            name = "Treatment_Anti.CD3_vs_Isotype")
 
+d14_AntiCD3VsIso <- as.data.frame(res_AntiCD3VsIso); d14_AntiCD3VsIso$gene <- rownames(res_AntiCD3VsIso)
+write.csv(d14_AntiCD3VsIso, "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_AntiCD3VsIso.csv", row.names = TRUE)
 
-design(dds_AntiCD3_IsoVsAntiCD3) <- ~ Treatment
-dds_AntiCD3_IsoVsAntiCD3 <- DESeq(dds_AntiCD3_IsoVsAntiCD3)
-design(dds_AntiCD3_IsoVsAntiCD3)
-resultsNames(dds_AntiCD3_IsoVsAntiCD3)
-res_IsoVsAntiCD3 <- results(dds_AntiCD3_IsoVsAntiCD3,
-                                             name = "Treatment_Anti.CD3_vs_Isotype")
-
-d14_IsoVsAntiCD3 <- as.data.frame(res_IsoVsAntiCD3); d14_IsoVsAntiCD3$gene <- rownames(res_IsoVsAntiCD3)
-write.csv(d14_IsoVsAntiCD3, "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_IsoVsAntiCD3.csv", row.names = TRUE)
-
-keyvals_d14_IsoVsAntiCD3  <- make_keyvals_fdr_fc(d14_IsoVsAntiCD3)
-selLab_d14_IsoVsAntiCD3  <- pick_labels(d14_IsoVsAntiCD3,  q_cut, fc_cut, 30)
-xmax_d14_IsoVsAntiCD3  <- max(2, ceiling(max(abs(d14_IsoVsAntiCD3$log2FoldChange),  na.rm=TRUE)))
+keyvals_d14_AntiCD3VsIso  <- make_keyvals_fdr_fc(d14_AntiCD3VsIso)
+selLab_d14_AntiCD3VsIso  <- pick_labels(d14_AntiCD3VsIso,  q_cut, fc_cut, 30)
+xmax_d14_AntiCD3VsIso  <- max(2, ceiling(max(abs(d14_AntiCD3VsIso$log2FoldChange),  na.rm=TRUE)))
 dev.new(width = 10, height = 10)
 EnhancedVolcano(
-  d14_IsoVsAntiCD3,
-  lab           = d14_IsoVsAntiCD3$gene,
+  d14_AntiCD3VsIso,
+  lab           = d14_AntiCD3VsIso$gene,
   x             = "log2FoldChange",
   y             = "padj",
   pCutoff       = 0.10,          # FDR threshold
   FCcutoff      = 1,
   xlab          = expression("log"[2]*"(Fold Change)"),
   ylab          = expression("-log"[10]*"(FDR)"),
-  title         = "Isotype vs Anti-CD3 Treatmentdr",
-  subtitle      = paste0("FDR ≤0.10 & |LFC| ≥1 (n=", sum(d14_IsoVsAntiCD3$padj<0.10 & abs(d14_IsoVsAntiCD3$log2FoldChange)>=1, na.rm=TRUE), ")"),
-  xlim          = c(-xmax_d14_IsoVsAntiCD3, xmax_d14_IsoVsAntiCD3),
+  title         = "Anti-CD3 vs Isotype Treatment",
+  subtitle      = paste0("FDR ≤0.10 & |LFC| ≥1 (n=", sum(d14_AntiCD3VsIso$padj<0.10 & abs(d14_AntiCD3VsIso$log2FoldChange)>=1, na.rm=TRUE), ")"),
+  xlim          = c(-xmax_d14_AntiCD3VsIso, xmax_d14_AntiCD3VsIso),
   ylim = c(0,5),
   boxedLabels   = TRUE,
   pointSize     = 3,
@@ -208,21 +206,21 @@ EnhancedVolcano(
   colAlpha      = 0.8,
   drawConnectors= TRUE,
   max.overlaps = 15,
-  colCustom     = keyvals_d14_IsoVsAntiCD3,
+  colCustom     = keyvals_d14_AntiCD3VsIso,
   legendPosition= "right",
-  selectLab     = selLab_d14_IsoVsAntiCD3
+  selectLab     = selLab_d14_AntiCD3VsIso
 )
 
 # 4b.Compare the Resistant vs Sensitive Group in the anti-CD3 treatment (Again for Day 14 only) ----
 sel <- colData(dds_AntiCD3)$Group %in% c("Sensitive","Resistant")
-dds_AntiCD3_SensitiveVsResistant <- dds_AntiCD3[, sel]
+dds_AntiCD3_ResistantVsSensitive <- dds_AntiCD3[, sel]
 
-dds_AntiCD3_SensitiveVsResistant$Group <- factor(dds_AntiCD3_SensitiveVsResistant$Group,
+dds_AntiCD3_ResistantVsSensitive$Group <- factor(dds_AntiCD3_ResistantVsSensitive$Group,
                                                  levels = c("Sensitive", 
                                                             "Resistant"))
-levels(dds_AntiCD3_SensitiveVsResistant$Group)
+levels(dds_AntiCD3_ResistantVsSensitive$Group)
 
-cd <- as.data.frame(colData(dds_AntiCD3_SensitiveVsResistant))
+cd <- as.data.frame(colData(dds_AntiCD3_ResistantVsSensitive))
 # Basic sanity
 lapply(cd[, c("Group")], function(x) table(x, useNA="ifany"))
 # Check for NAs
@@ -236,35 +234,35 @@ table(cd$Group,cd$Day)
 # Sensitive  9
 # Resistant  8
 
-keep <- rowSums(counts(dds_AntiCD3_SensitiveVsResistant) >= 10) >= 8  # Smallest number of samples in a treatment group
-dds_AntiCD3_SensitiveVsResistant <- dds_AntiCD3_SensitiveVsResistant[keep, ]
+keep <- rowSums(counts(dds_AntiCD3_ResistantVsSensitive) >= 10) >= 8  # Smallest number of samples in a treatment group
+dds_AntiCD3_ResistantVsSensitive <- dds_AntiCD3_ResistantVsSensitive[keep, ]
 
 #Design Formula
-design(dds_AntiCD3_SensitiveVsResistant) <- ~ Group
-dds_AntiCD3_SensitiveVsResistant <- DESeq(dds_AntiCD3_SensitiveVsResistant)
-resultsNames(dds_AntiCD3_SensitiveVsResistant)
-res_SensitiveVsResistant <- results(dds_AntiCD3_SensitiveVsResistant,
+design(dds_AntiCD3_ResistantVsSensitive) <- ~ Group
+dds_AntiCD3_ResistantVsSensitive <- DESeq(dds_AntiCD3_ResistantVsSensitive)
+resultsNames(dds_AntiCD3_ResistantVsSensitive)
+res_ResistantVsSensitive <- results(dds_AntiCD3_ResistantVsSensitive,
                             name = "Group_Resistant_vs_Sensitive")
 
-d14_SensitiveVsResistant <- as.data.frame(res_SensitiveVsResistant); d14_SensitiveVsResistant$gene <- rownames(res_SensitiveVsResistant)
-write.csv(d14_SensitiveVsResistant, "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_SensitiveVsResistant.csv", row.names = TRUE)
+d14_ResistantVsSensitive <- as.data.frame(res_ResistantVsSensitive); d14_ResistantVsSensitive$gene <- rownames(res_ResistantVsSensitive)
+write.csv(d14_ResistantVsSensitive, "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_ResistantVsSensitive.csv", row.names = TRUE)
 
-keyvals_d14_SensitiveVsResistant  <- make_keyvals_fdr_fc(d14_SensitiveVsResistant)
-selLab_d14_SensitiveVsResistant  <- pick_labels(d14_SensitiveVsResistant,  q_cut, fc_cut, 30)
-xmax_d14_SensitiveVsResistant  <- max(2, ceiling(max(abs(d14_SensitiveVsResistant$log2FoldChange),  na.rm=TRUE)))
+keyvals_d14_ResistantVsSensitive  <- make_keyvals_fdr_fc(d14_ResistantVsSensitive)
+selLab_d14_ResistantVsSensitive  <- pick_labels(d14_ResistantVsSensitive,  q_cut, fc_cut, 30)
+xmax_d14_ResistantVsSensitive  <- max(2, ceiling(max(abs(d14_ResistantVsSensitive$log2FoldChange),  na.rm=TRUE)))
 dev.new(width = 10, height = 10)
 EnhancedVolcano(
-  d14_SensitiveVsResistant,
-  lab           = d14_SensitiveVsResistant$gene,
+  d14_ResistantVsSensitive,
+  lab           = d14_ResistantVsSensitive$gene,
   x             = "log2FoldChange",
   y             = "padj",
   pCutoff       = 0.10,          # FDR threshold
   FCcutoff      = 1,
   xlab          = expression("log"[2]*"(Fold Change)"),
   ylab          = expression("-log"[10]*"(FDR)"),
-  title         = "Sensitive vs Resistant Group",
-  subtitle      = paste0("FDR ≤0.10 & |LFC| ≥1 (n=", sum(d14_SensitiveVsResistant$padj<0.10 & abs(d14_SensitiveVsResistant$log2FoldChange)>=1, na.rm=TRUE), ")"),
-  xlim          = c(-xmax_d14_SensitiveVsResistant, xmax_d14_SensitiveVsResistant),
+  title         = "Resistant vs Sensitive Group",
+  subtitle      = paste0("FDR ≤0.10 & |LFC| ≥1 (n=", sum(d14_ResistantVsSensitive$padj<0.10 & abs(d14_ResistantVsSensitive$log2FoldChange)>=1, na.rm=TRUE), ")"),
+  xlim          = c(-xmax_d14_ResistantVsSensitive, xmax_d14_ResistantVsSensitive),
   ylim = c(0,5),
   boxedLabels   = TRUE,
   pointSize     = 3,
@@ -272,31 +270,31 @@ EnhancedVolcano(
   colAlpha      = 0.8,
   drawConnectors= TRUE,
   max.overlaps = 15,
-  colCustom     = keyvals_d14_SensitiveVsResistant,
+  colCustom     = keyvals_d14_ResistantVsSensitive,
   legendPosition= "right",
-  selectLab     = selLab_d14_SensitiveVsResistant
+  selectLab     = selLab_d14_ResistantVsSensitive
 )
 
 # 5.GSEA Analysis----
 # Paths to your saved results
-IsoVsAntiCD3_path <- "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_IsoVsAntiCD3.csv"
-SensitiveVsResistant_path <- "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_SensitiveVsResistant.csv"
+AntiCD3VsIso_path <- "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_AntiCD3VsIso.csv"
+ResistantVsSensitive_path <- "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_ResistantVsSensitive.csv"
 
 # Import
-IsoVsAntiCD3  <- read.csv(IsoVsAntiCD3_path,  row.names = 1)
-SensitiveVsResistant <- read.csv(SensitiveVsResistant_path, row.names = 1)
+AntiCD3VsIso <- read.csv(AntiCD3VsIso_path,  row.names = 1)
+ResistantVsSensitive <- read.csv(ResistantVsSensitive_path, row.names = 1)
 
 # Build ranked gene lists using DESeq2 Wald stat
-lfc_vector_IsoVsAntiCD3  <- IsoVsAntiCD3$stat;  names(lfc_vector_IsoVsAntiCD3)  <- rownames(IsoVsAntiCD3)
-lfc_vector_SensitiveVsResistant <- SensitiveVsResistant$stat; names(lfc_vector_SensitiveVsResistant) <- rownames(SensitiveVsResistant)
+lfc_vector_AntiCD3VsIso <- AntiCD3VsIso$stat;  names(lfc_vector_AntiCD3VsIso) <- rownames(AntiCD3VsIso)
+lfc_vector_ResistantVsSensitive <- ResistantVsSensitive$stat; names(lfc_vector_ResistantVsSensitive) <- rownames(ResistantVsSensitive)
 
 # Drop NAs
-lfc_vector_IsoVsAntiCD3 <- lfc_vector_IsoVsAntiCD3[!is.na(lfc_vector_IsoVsAntiCD3)]
-lfc_vector_SensitiveVsResistant <- lfc_vector_SensitiveVsResistant[!is.na(lfc_vector_SensitiveVsResistant)]
+lfc_vector_AntiCD3VsIso <- lfc_vector_AntiCD3VsIso[!is.na(lfc_vector_AntiCD3VsIso)]
+lfc_vector_ResistantVsSensitive <- lfc_vector_ResistantVsSensitive[!is.na(lfc_vector_ResistantVsSensitive)]
 
 # Sort decreasing (required by clusterProfiler::GSEA)
-lfc_vector_IsoVsAntiCD3 <- sort(lfc_vector_IsoVsAntiCD3,  decreasing = TRUE)
-lfc_vector_SensitiveVsResistant <- sort(lfc_vector_SensitiveVsResistant, decreasing = TRUE)
+lfc_vector_AntiCD3VsIso <- sort(lfc_vector_AntiCD3VsIso,  decreasing = TRUE)
+lfc_vector_ResistantVsSensitive <- sort(lfc_vector_ResistantVsSensitive, decreasing = TRUE)
 
 # --- Collect each set and convert into 2-column (gs_name, gene_symbol) ---
 
@@ -328,8 +326,8 @@ mm_kegg_df <- data.frame(
 mm_all_df <- rbind(mm_c8_df, mm_h_df, mm_kegg_df)
 
 # Isotype Vs AntiCD3 Treatment
-gsea_results_IsoVsAntiCD3 <- GSEA(
-  geneList      = lfc_vector_IsoVsAntiCD3,
+gsea_results_AntiCD3VsIso <- GSEA(
+  geneList      = lfc_vector_AntiCD3VsIso,
   minGSSize     = 5,
   maxGSSize     = 500,
   pvalueCutoff  = 1,
@@ -338,11 +336,11 @@ gsea_results_IsoVsAntiCD3 <- GSEA(
   pAdjustMethod = "BH",
   TERM2GENE     = mm_all_df
 )
-gsea_results_IsoVsAntiCD3_df <- as.data.frame(gsea_results_IsoVsAntiCD3)
+gsea_results_AntiCD3VsIso_df <- as.data.frame(gsea_results_AntiCD3VsIso)
 
 # Sensitive vs Resistant Group
-gsea_results_SensitiveVsResistant <- GSEA(
-  geneList      = lfc_vector_SensitiveVsResistant,
+gsea_results_ResistantVsSensitive <- GSEA(
+  geneList      = lfc_vector_ResistantVsSensitive,
   minGSSize     = 5,
   maxGSSize     = 500,
   pvalueCutoff  = 1,
@@ -351,14 +349,14 @@ gsea_results_SensitiveVsResistant <- GSEA(
   pAdjustMethod = "BH",
   TERM2GENE     = mm_all_df
 )
-gsea_results_SensitiveVsResistant_df <- as.data.frame(gsea_results_SensitiveVsResistant)
+gsea_results_ResistantVsSensitive_df <- as.data.frame(gsea_results_ResistantVsSensitive)
 
 # Full results Isotype Vs AntiCD3 Treatment
-write.csv(gsea_results_IsoVsAntiCD3_df,
-          "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/GSEAResults_IsoVsAntiCD3.csv",
+write.csv(gsea_results_AntiCD3VsIso_df,
+          "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/GSEAResults_AntiCD3VsIso.csv",
           row.names = FALSE)
 
 # Full results Sensitive Vs Resistant Group
-write.csv(gsea_results_SensitiveVsResistant_df,
-          "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/GSEAResults_SensitiveVsResistant.csv",
+write.csv(gsea_results_ResistantVsSensitive_df,
+          "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/GSEAResults_ResistantVsSensitive.csv",
           row.names = FALSE)
