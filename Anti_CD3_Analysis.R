@@ -69,9 +69,6 @@ genes <- counts_batch$external_gene_name
 rownames(counts_batch) <- genes
 counts_batch$external_gene_name <- NULL
 
-#Create new column with high-level analysis groups
-meta_batch$Outcomes <- meta_batch$Group
-
 
 # 2.Preprocessing and Cleaning ----
 
@@ -88,28 +85,13 @@ rows_to_remove <- grep(remove_pattern, rownames(AntiCD3Counts)) #Remove Gm genes
 # Remove those rows from case1_f1
 AntiCD3Counts <- AntiCD3Counts[-rows_to_remove, ]
 
-# # Subsetting data for day 14
-# meta_batch <- meta_batch %>% filter(Day ==14)
-# AntiCD3Counts <- AntiCD3Counts[, colnames(AntiCD3Counts) %in% meta_batch$Samples]
-# 
-# # Saving case1_f1 dataframe as a CSV file
-# write.csv(AntiCD3Counts, file = "C:/Users/17343/Desktop/AntiCD3Monitoring/Data/Anti_CD3/AntiCD3_Raw_Counts_ITx_Filtered.csv", row.names = TRUE)
-# 
-# # Saving meta_combined dataframe as a CSV file
-# write.csv(meta_batch, file = "C:/Users/17343/Desktop/AntiCD3Monitoring/Data/Anti_CD3/AntiCD3_Metadata_ITx.csv", row.names = FALSE)
-
-# Color palettes
-# coul <- colorRampPalette(brewer.pal(11, "RdBu"))(100) # Palette for gene heatmaps
-# coul_gsva <- colorRampPalette(brewer.pal(11, "PRGn"))(100) # Palette for gsva heatmaps
-# colSide <- flexiDEG.colors(meta_batch)
-# unique_colSide <- unique(colSide)
 
 # 3.Create Universal DESqEQ Object ----
 AntiCD3Counts <- as.matrix(AntiCD3Counts)
 storage.mode(AntiCD3Counts) <- "integer"
 
 dds_AntiCD3 <- DESeqDataSetFromMatrix(AntiCD3Counts, meta_batch,
-                                              design = ~ 1)   # dummy design for now
+                                              design = ~ 1)   # dummy design 
 
 #saveRDS(dds_AntiCD3, file = "C:/Users/17343/Desktop/AntiCD3Monitoring/Data/RObjects/dds_AntiCD3_master.rds")
 saveRDS(dds_AntiCD3, file = "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Scaffold Bulk RNA/Robject/dds_AntiCD3_master.rds")
@@ -117,7 +99,7 @@ saveRDS(dds_AntiCD3, file = "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequ
 q_cut  <- 0.10
 fc_cut <- 1
 make_keyvals_fdr_fc_aCD3_Iso <- function(df, q = 0.10, fc = 1,
-                                col_up = "#1F77B4", col_down = "#D62728", col_ns = "gray70") {
+                                col_up = "black", col_down = "#D62728", col_ns = "gray70") {
   # valid stats (for coloring); everything else becomes NS
   ok   <- !is.na(df$padj) & !is.na(df$log2FoldChange)
   
@@ -171,10 +153,10 @@ mm <- model.matrix(~ Treatment, data = cd)
 qr(mm)$rank; ncol(mm)             # if rank < ncol(mm), not full rank
 
 table(cd$Treatment,cd$Day)
-#             14
-# Isotype      5
-# Resistant    8
-# Sensitive    9
+
+#         14
+#Isotype   5
+#Anti-CD3 17
 
 keep <- rowSums(counts(dds_AntiCD3_AntiCD3VsIso) >= 10) >= 5  # Smallest number of samples in a treatment group
 dds_AntiCD3_AntiCD3VsIso <- dds_AntiCD3_AntiCD3VsIso[keep, ]
@@ -191,28 +173,25 @@ write.csv(d14_AntiCD3VsIso, "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequ
 
 keyvals_d14_AntiCD3VsIso  <- make_keyvals_fdr_fc_aCD3_Iso(d14_AntiCD3VsIso)
 selLab_d14_AntiCD3VsIso  <- c(
-  # Up in Isotype
-  "Ctla4", "Icos", "Foxp3", "Itk", "Cd2",
-  #"Trat1", "Sit1", 
-  "Rorc", "Klrg1",
-  #"Klrb1a", "Klrb1c",
-  #"Pou2af1", "Mzb1", 
-  "Jchain",
-  "Igkc", "Ighg1", 
-  #"Ighm", "Iglc1", "Iglv1",
-  #"Trgc1", 
+  # Higher in Isotype: adaptive/T-cell program
+  "Ctla4",
+  "Icos",
+  "Foxp3",
+  "Rorc",
+  "Klrg1",
+  "Cd2",
   "Trdc",
-  #"Blk",
-  "Gzma", "Gzmd",
-  #Up in Anti-CD3
-  # Cytokines / chemokines
-  "Il1b",  
-  # Innate immune / myeloid / inflammation
-  "Mpo", "Mmp9", 
-  "S100a8", "Pglyrp1", "Cd177",
+  "Gzma",
   "Adgre4",
-  "Siglece", "Cd300e",
-  # Immune regulation / checkpoint-like / metabolic immune modulators
+  # Higher in Anti-CD3: innate/myeloid program
+  "Il1b",
+  "S100a8",
+  "Mpo",
+  "Mmp9",
+  "Pglyrp1",
+  "Cd177",
+  "Siglece",
+  "Cd300e",
   "Ido1"
 )
 xmax_d14_AntiCD3VsIso  <- max(2, ceiling(max(abs(d14_AntiCD3VsIso$log2FoldChange),  na.rm=TRUE)))
@@ -241,8 +220,243 @@ EnhancedVolcano(
   selectLab     = selLab_d14_AntiCD3VsIso
 )
 
-## PCA-DE Genes----
 
+
+## Myelpid Anti-CD3 Signature----
+
+
+# myeloid_gene_groups <- list(
+#   
+#   "Macrophage / monocyte identity" = c(
+#     "Clec10a",
+#     "Apoe",
+#     "Cd163",
+#     "Cd163l1",
+#     "Mertk",
+#     "Aif1",
+#     "Adgre4",
+#     "Cd209e",
+#     "Mgl2",
+#     "Mfge8",
+#     "Scara3",
+#     "Lst1",
+#     "Ms4a4a",
+#     "Lyz1",
+#     "Ssc5d",
+#     "Clec12a",
+#     "Oscar",
+#     "Trem3",
+#     "Treml4",
+#     "Siglece",
+#     "Cd300e",
+#     "Pilra",
+#     "Pilrb1",
+#     "Pilrb2"
+#   ),
+#   
+#   "Monocyte / inflammatory macrophage" = c(
+#     "Ccl8",
+#     "Vcan",
+#     "Gpr84",
+#     "Chil1",
+#     "Chil3",
+#     "Gpbar1",
+#     "Slc7a2",
+#     "Arg2",
+#     "Steap4",
+#     "Hsd11b1",
+#     "G0s2",
+#     "Rab38",
+#     "Pram1",
+#     "F2rl1",
+#     "F2rl3",
+#     "Spon2",
+#     "Sort1",
+#     "Rufy4",
+#     "Areg",
+#     "Ptgs2",
+#     "Il1b",
+#     "Il6",
+#     "Ido1"
+#   ),
+#   
+#   # "Neutrophil / granulocyte" = c(
+#   #   "Mpo",
+#   #   "Mmp9",
+#   #   "S100a8",
+#   #   "Lcn2",
+#   #   "Pglyrp1",
+#   #   "Ngp",
+#   #   "Camp",
+#   #   "Cd177",
+#   #   "Cxcl5",
+#   #   "Csf3",
+#   #   "Gfi1",
+#   #   "Abcg3",
+#   #   "Adgrg3",
+#   #   "Ear1",
+#   #   "Ear2",
+#   #   "Ear6",
+#   #   "Rnase2a",
+#   #   "Mrgpra2a",
+#   #   "Mrgpra2b",
+#   #   "Ppbp"
+#   # ),
+#   # 
+#   # "Myeloid receptors / innate sensing" = c(
+#   #   "Tlr1",
+#   #   "Tlr9",
+#   #   "Tlr11",
+#   #   "Tril",
+#   #   "Inava",
+#   #   "Jaml",
+#   #   "Calhm6",
+#   #   "Unc93a",
+#   #   "Unc93a2",
+#   #   "F2rl1",
+#   #   "F2rl3",
+#   #   "Gpbar1",
+#   #   "Hrh2",
+#   #   "Ifnlr1"
+#   # ),
+#   
+#   "Inflammatory / chemokine signaling" = c(
+#     "Il1b",
+#     "Il6",
+#     "Il27",
+#     "Ccl8",
+#     "Cxcl9",
+#     "Cxcl10",
+#     "Areg",
+#     "Ptgs2",
+#     "Ido1",
+#     "Irf1",
+#     "Mapk13",
+#     "Mgst2",
+#     "Cfb",
+#     "Orm1",
+#     "Serpina3m"
+#   ),
+#   
+#   # "Interferon / antimicrobial response" = c(
+#   #   "Irf1",
+#   #   "Zbp1",
+#   #   "Ifi44",
+#   #   "Isg15",
+#   #   "Ddx60",
+#   #   "Ifit1bl2",
+#   #   "Iigp1",
+#   #   "Irgm2",
+#   #   "Igtp",
+#   #   "Tgtp1",
+#   #   "Tgtp2",
+#   #   "Gbp2",
+#   #   "Gbp2b",
+#   #   "Gbp4",
+#   #   "Gbp5",
+#   #   "Gbp6",
+#   #   "Gbp9",
+#   #   "Ubd",
+#   #   "Trim30b",
+#   #   "Apol9a",
+#   #   "Apol9b",
+#   #   "Apol10b",
+#   #   "Apol7a"
+#   # ),
+#   
+#   "Antigen presentation / immune regulation" = c(
+#     "Ciita",
+#     "Btnl2",
+#     "Cd38",
+#     "Ido1",
+#     "Tsc22d3",
+#     "Phf11a",
+#     "Tnk1"
+#   )
+# )
+
+
+macrophage_gene_groups <- list(
+  
+  "Macrophage / monocyte identity" = c(
+    "Clec10a",
+    "Apoe",
+    "Cd163",
+    "Cd163l1",
+    "Mertk",
+    "Aif1",
+    "Adgre4",
+    "Cd209e",
+    "Mgl2",
+    "Mfge8",
+    "Scara3",
+    "Lst1",
+    "Ms4a4a",
+    "Lyz1",
+    "Ssc5d",
+    "Clec12a",
+    "Oscar",
+    "Trem3",
+    "Treml4",
+    "Siglece",
+    "Cd300e",
+    "Pilra",
+    "Pilrb1",
+    "Pilrb2"
+  ),
+  
+  "Monocyte / macrophage state" = c(
+    "Ccl8",
+    "Vcan",
+    "Gpr84",
+    "Chil1",
+    "Chil3",
+    "Gpbar1",
+    "Slc7a2",
+    "Arg2",
+    "Steap4",
+    "Hsd11b1",
+    "G0s2",
+    "Rab38",
+    "Pram1",
+    "F2rl1",
+    "F2rl3",
+    "Spon2",
+    "Sort1",
+    "Rufy4"
+  ),
+  
+  "Macrophage inflammatory / regulatory response" = c(
+    "Il1b",
+    "Il6",
+    "Il27",
+    "Ccl8",
+    "Cxcl9",
+    "Cxcl10",
+    "Areg",
+    "Ptgs2",
+    "Ido1",
+    "Irf1",
+    "Mapk13",
+    "Mgst2",
+    "Cfb",
+    "Orm1",
+    "Serpina3m"
+  ),
+  
+  "Antigen presentation / immune regulation" = c(
+    "Ciita",
+    "Btnl2",
+    "Cd38",
+    "Ido1",
+    "Tsc22d3",
+    "Phf11a",
+    "Tnk1"
+  )
+)
+
+myeloid_genes <- unique(unlist(macrophage_gene_groups))
+length(myeloid_genes)
 # 1. Get significant DE genes
 sig_genes_AntiCD3VsIso <- d14_AntiCD3VsIso %>%
   dplyr::filter(
@@ -253,13 +467,149 @@ sig_genes_AntiCD3VsIso <- d14_AntiCD3VsIso %>%
   dplyr::pull(gene)
 
 length(sig_genes_AntiCD3VsIso)
-# 2. Variance-stabilized expression
+myeloid_genes<-intersect(myeloid_genes,sig_genes_AntiCD3VsIso)
+length(myeloid_genes)
+
+vsd <- DESeq2::vst(dds_AntiCD3_AntiCD3VsIso, blind = FALSE)
+mat <- assay(vsd)
+cd <- as.data.frame(colData(dds_AntiCD3_AntiCD3VsIso))
+
+# expression matrix for glmnet: samples x genes
+x_IsoVsaCD3 <- t(mat[myeloid_genes, , drop = FALSE])
+
+# binary outcome
+y_IsoVsaCD3 <- ifelse(cd$Treatment == "Isotype", 1, 0)
+
+# Find best alpha with LOOCV
+set.seed(123)
+alpha_grid <- seq(0, 1, by = 0.1)
+cv_summary <- data.frame()
+
+for (a in alpha_grid) {
+  cvfit <- cv.glmnet(
+    x = x_IsoVsaCD3,
+    y = y_IsoVsaCD3,
+    family = "binomial",
+    alpha = a,
+    foldid = 1:length(y_ResVsSen),   # LOOCV
+    type.measure = "deviance",
+    standardize = TRUE
+  )
+  
+  cv_summary <- rbind(
+    cv_summary,
+    data.frame(
+      alpha = a,
+      cv_error = min(cvfit$cvm),
+      lambda_min = cvfit$lambda.min,
+      lambda_1se = cvfit$lambda.1se
+    )
+  )
+}
+
+cv_summary[order(cv_summary$cv_error), ]
+cv_summary
+
+best_alpha <- cv_summary$alpha[which.min(cv_summary$cv_error)]
+
+# Stability selection
+set.seed(123)
+n_iter <- 1000
+n_samples <- nrow(x_IsoVsaCD3)
+
+
+class1_idx <- which(y_IsoVsaCD3 == unique(y_IsoVsaCD3)[1])
+class2_idx <- which(y_IsoVsaCD3 == unique(y_IsoVsaCD3)[2])
+
+selected_list <- vector("list", n_iter)
+
+for (i in 1:n_iter) {
+  
+  # Subsample ~80% of samples each time
+  
+  idx1 <- sample(class1_idx, size = round(0.8 * length(class1_idx)))
+  idx2 <- sample(class2_idx, size = round(0.8 * length(class2_idx)))
+  idx  <- c(idx1, idx2)
+  
+  x_sub <- x_IsoVsaCD3[idx, ]
+  y_sub <- y_IsoVsaCD3[idx]
+  
+  cvfit <- cv.glmnet(
+    x_sub,
+    y_sub,
+    family = "binomial",
+    alpha = best_alpha,
+    foldid = 1:length(y_sub),
+    type.measure = "deviance",
+    standardize = TRUE
+  )
+  
+  coef_mat <- coef(cvfit, s = "lambda.1se")
+  genes <- rownames(coef_mat)[coef_mat[,1] != 0]
+  genes <- setdiff(genes, "(Intercept)")
+  
+  selected_list[[i]] <- genes
+}
+
+#Select Genes which appear atleast 70% of times
+all_genes <- colnames(x_IsoVsaCD3)
+
+freq <- sapply(all_genes, function(g) {
+  mean(sapply(selected_list, function(s) g %in% s))
+})
+
+freq_table <- data.frame(
+  gene = names(freq),
+  selection_frequency = freq
+)
+freq_table <- freq_table[order(freq_table$selection_frequency, decreasing = TRUE), ]
+stable_genes <- subset(freq_table, selection_frequency >= 0.7) #Select genes appearing atleast 70 percent of time
+stable_genes
+
+
+#Plot Heatmp and PCA using Selected Genes 
+stable_gene_names <- stable_genes$gene
+mat_stable <- mat[stable_gene_names, , drop = FALSE]
+mat_scaled <- t(scale(t(mat_stable)))
+annotation_col <- data.frame(
+  Group = cd$Treatment
+)
+rownames(annotation_col) <- colnames(mat_scaled)
+
+
+annotation_colors <- list(
+  Group = c(
+    "Isotype" = "#D62728",   # Scarlet
+    "Anti-CD3" = "black"     # green
+  )
+)
+#dev.new()
+pheatmap(
+  mat_scaled,
+  annotation_col = annotation_col,
+  annotation_colors = annotation_colors,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  show_rownames = TRUE,
+  show_colnames = FALSE,
+  fontsize = 14,
+  fontsize_row = 10,
+  fontsize_col = 10,
+  color = colorRampPalette(c("navy","white","firebrick3"))(100),
+  breaks = seq(-2, 2, length.out = 101),  
+  main = "Myeloid Anti-CD3 Gene Panel"
+)
+
+
+## PCA-Myeloid Anti-CD3 Signature----
+
+# 1. Variance-stabilized expression
 
 vsd_AntiCD3VsIso <- vst(dds_AntiCD3_AntiCD3VsIso, blind = FALSE)
 expr_AntiCD3VsIso <- assay(vsd_AntiCD3VsIso)
 
 # Keep only DE genes
-expr_AntiCD3VsIso_sig <- expr_AntiCD3VsIso[rownames(expr_AntiCD3VsIso) %in% sig_genes_AntiCD3VsIso, ]
+expr_AntiCD3VsIso_sig <- expr_AntiCD3VsIso[rownames(expr_AntiCD3VsIso) %in% stable_gene_names, ]
 
 # Remove zero-variance genes if any
 expr_AntiCD3VsIso_sig <- expr_AntiCD3VsIso_sig[
@@ -267,7 +617,7 @@ expr_AntiCD3VsIso_sig <- expr_AntiCD3VsIso_sig[
   , drop = FALSE
 ]
 
-# 3. PCA on samples
+# PCA on samples
 
 mat_pca <- t(expr_AntiCD3VsIso_sig)
 pca <- prcomp(mat_pca, scale. = TRUE)
@@ -283,11 +633,11 @@ pca_df <- data.frame(
 # Make sure treatment names are exactly what you want in plot
 pca_df$Treatment <- factor(pca_df$Treatment, levels = c("Isotype", "Anti-CD3"))
 
-# 4. Define colors and shapes
+# Define colors and shapes
 
 group_colors <- c(
-  "Isotype" = "#B23A48",
-  "Anti-CD3" = "#2A6F97"
+  "Isotype" = "#D62728",
+  "Anti-CD3" = "black"
 )
 
 group_shapes <- c(
@@ -295,7 +645,7 @@ group_shapes <- c(
   "Anti-CD3" = 17
 )
 
-# 5. Plot PCA
+# Plot PCA
 
 ggplot(pca_df, aes(PC1, PC2, color = Treatment, shape = Treatment)) +
   geom_point(aes(fill = Treatment), size = 5, stroke = 1.2) +
@@ -311,7 +661,7 @@ ggplot(pca_df, aes(PC1, PC2, color = Treatment, shape = Treatment)) +
   scale_shape_manual(values = group_shapes) +
   theme_classic(base_size = 18) +
   labs(
-    title = "PCA of DE Genes: Anti-CD3 vs Isotype",
+    title = "PCA of Myeloid Anti-CD3 Signature",
     x = paste0("PC1 (", round(100 * summary(pca)$importance[2, 1], 1), "%)"),
     y = paste0("PC2 (", round(100 * summary(pca)$importance[2, 2], 1), "%)")
   ) +
@@ -389,6 +739,96 @@ write.csv(gsea_results_AntiCD3VsIso_df,
           "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Scaffold Bulk RNA/Results/AntiCD3VsIsotype/GSEAResults_AntiCD3VsIso.csv",
           row.names = FALSE)
 
+selected_gsea_sets <- c(
+  
+  # Monocyte / macrophage states
+  "HE_LIM_SUN_FETAL_LUNG_C2_PROMONOCYTE_LIKE_CELL",
+  "HE_LIM_SUN_FETAL_LUNG_C2_NON_CLASSICAL_MONOCYTE",
+  "TRAVAGLINI_LUNG_CLASSICAL_MONOCYTE_CELL",
+  "FAN_OVARY_CL13_MONOCYTE_MACROPHAGE",
+  "TRAVAGLINI_LUNG_MACROPHAGE_CELL",
+  "HE_LIM_SUN_FETAL_LUNG_C2_CXCL9_POS_MACROPHAGE_CELL",
+  "HE_LIM_SUN_FETAL_LUNG_C2_APOE_POS_M2_MACROPHAGE_CELL",
+  # #"SU_HO_CONV_CENT_CHONDROSARCOMA_LEUKOCYTE_C0_M1_MACROPHAGE",
+  # "AIZARANI_LIVER_C6_KUPFFER_CELLS_2",
+  # "DESCARTES_MAIN_FETAL_MYELOID_CELLS",
+  "TRAVAGLINI_LUNG_MYELOID_DENDRITIC_TYPE_1_CELL",
+  
+  # Inflammatory innate signaling
+  "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+  "HALLMARK_INTERFERON_ALPHA_RESPONSE",
+  "KEGG_CYTOKINE_CYTOKINE_RECEPTOR_INTERACTION",
+  "HALLMARK_REACTIVE_OXYGEN_SPECIES_PATHWAY",
+  
+  # Phagolysosomal / macrophage function
+  "KEGG_LYSOSOME",
+  "KEGG_ENDOCYTOSIS",
+  "KEGG_REGULATION_OF_AUTOPHAGY",
+  
+  # Metabolic regulation
+  "KEGG_MTOR_SIGNALING_PATHWAY",
+  "HALLMARK_OXIDATIVE_PHOSPHORYLATION",
+  "KEGG_PPAR_SIGNALING_PATHWAY",
+  "HALLMARK_GLYCOLYSIS",
+  
+  # Lymphoid treatment-response controls
+  "HAY_BONE_MARROW_NAIVE_T_CELL",
+  "TRAVAGLINI_LUNG_CD4_NAIVE_T_CELL",
+  "TRAVAGLINI_LUNG_CD8_NAIVE_T_CELL"
+)
+
+# Helper to standardize clusterProfiler GSEA columns
+coerce_gsea_tbl <- function(df, day_label){
+  # try common column names: Description/ID/pathway/setName; p.adjust/padj
+  gs  <- if ("Description" %in% names(df)) df$Description else if ("ID" %in% names(df)) df$ID else if ("pathway" %in% names(df)) df$pathway else if ("setName" %in% names(df)) df$setName else rownames(df)
+  pad <- if ("p.adjust"   %in% names(df)) df$p.adjust   else if ("padj" %in% names(df)) df$padj else df$pval
+  tibble(
+    gs_name = as.character(gs),
+    NES     = as.numeric(df$NES),
+    padj    = as.numeric(pad),
+    Day     = day_label
+  )
+}
+
+plot_df <- gsea_results_AntiCD3VsIso_df %>%
+  filter(ID %in% selected_gsea_sets) %>%
+  mutate(
+    neglog10_padj = -log10(p.adjust),
+    neglog10_padj = ifelse(is.infinite(neglog10_padj), NA, neglog10_padj)
+  ) %>%
+  arrange(NES) %>%
+  mutate(
+    ID = factor(ID, levels = ID)
+  )
+
+
+ggplot(plot_df, aes(x = NES, y = ID, size = neglog10_padj, color = NES)) +
+  geom_point(alpha = 0.9) +
+  scale_size_continuous(name = expression(-log[10](adjusted~italic(p))), range = c(3, 10)) +
+  scale_color_gradient2(
+    low = "#D62728",
+    mid = "white",
+    high = "black",
+    midpoint = 0,
+    name = "NES"
+  ) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
+  theme_classic(base_size = 16) +
+  labs(
+    x = "Normalized Enrichment Score (NES)",
+    y = NULL,
+    title = "Anti-CD3 vs Isotype"
+  ) +
+  theme(
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+
+
+
+
+
 library(enrichplot)
 
 # Check exact pathway name
@@ -440,7 +880,8 @@ Cytotoxic_TCells <- gsea_results_AntiCD3VsIso[
   gsea_results_AntiCD3VsIso$Description == "GAUTAM_EYE_IRIS_CILIARY_BODY_CYTOTOXIC_T_CELLS",
 ]
 
-# 5.Compare the Resistant vs Sensitive Group in the anti-CD3 treatment (Again for Day 14 only) ----
+
+# 5.Day 14- aCD3 Resistant vs Sensitive Group ----
 sel <- colData(dds_AntiCD3)$Group %in% c("Sensitive","Resistant")  & colData(dds_AntiCD3)$Day %in% c(14)
 dds_AntiCD3_ResistantVsSensitive <- dds_AntiCD3[, sel]
 
@@ -476,8 +917,8 @@ res_ResistantVsSensitive <- results(dds_AntiCD3_ResistantVsSensitive,
 d14_ResistantVsSensitive <- as.data.frame(res_ResistantVsSensitive); d14_ResistantVsSensitive$gene <- rownames(res_ResistantVsSensitive)
 #write.csv(d14_ResistantVsSensitive, "C:/Users/17343/Desktop/AntiCD3Monitoring/Results/DESEQResults_Day14_ResistantVsSensitive.csv", row.names = TRUE)
 write.csv(d14_ResistantVsSensitive, "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Scaffold Bulk RNA/Results/ResistantVsSensitive/DESEQResults_Day14_ResistantVsSensitive.csv", row.names = TRUE)
-
 getwd()
+
 keyvals_d14_ResistantVsSensitive  <- make_keyvals_fdr_fc(d14_ResistantVsSensitive)
 selLab_d14_ResistantVsSensitive  <- pick_labels(d14_ResistantVsSensitive,  q_cut, fc_cut, 30)
 xmax_d14_ResistantVsSensitive  <- max(2, ceiling(max(abs(d14_ResistantVsSensitive$log2FoldChange),  na.rm=TRUE)))
@@ -492,8 +933,8 @@ sig_genes_ResistantVsSensitive <- d14_ResistantVsSensitive$gene[
 ]
 
 length(sig_genes_ResistantVsSensitive)
-
-vsd <- vst(dds_AntiCD3_ResistantVsSensitive, blind = FALSE)
+#177
+vsd <- DESeq2::vst(dds_AntiCD3_ResistantVsSensitive, blind = FALSE)
 mat <- assay(vsd)
 cd <- as.data.frame(colData(dds_AntiCD3_ResistantVsSensitive))
 
@@ -658,7 +1099,9 @@ ggplot(pca_df, aes(PC1, PC2, color = Group,, shape = Group)) +
     panel.grid = element_blank()
   )
 
+## T Cell Transcriptomics PCA----
 
+## PCA using T cell-related genes ----
 
 
 ## GSEA Analysis----
@@ -807,3 +1250,51 @@ ggplot(plot_df, aes(x = NES, y = ID, size = neglog10_padj, color = NES)) +
   )
 
 
+# 5.aCD3 Sensitive vs ND Over Time ----
+sel <- colData(dds_AntiCD3)$Group %in% c("Sensitive","Non Diabetic")  & colData(dds_AntiCD3)$Day %in% c(14,28,42,56,70)
+dds_AntiCD3_SensitiveVsND <- dds_AntiCD3[, sel]
+
+dds_AntiCD3_SensitiveVsND$Group <- factor(dds_AntiCD3_SensitiveVsND$Group,
+                                                 levels = c("Non Diabetic", 
+                                                            "Sensitive"))
+dds_AntiCD3_SensitiveVsND$Day <- factor(dds_AntiCD3_SensitiveVsND$Day,
+                                               levels = c(14,28,42,56,70))
+
+cd <- as.data.frame(colData(dds_AntiCD3_SensitiveVsND))
+# Basic sanity
+lapply(cd[, c("Group")], function(x) table(x, useNA="ifany"))
+# Check for NAs
+sapply(cd[, c("Group")], function(x) any(is.na(x)))
+# Model matrix rank
+mm <- model.matrix(~ Group, data = cd)
+qr(mm)$rank; ncol(mm)             # if rank < ncol(mm), not full rank
+
+table(cd$Group,cd$Day)
+#              14 28 42 56 70
+#Non Diabetic  5  6  5  6  6
+#Sensitive     9  8  9  8  8
+
+keep <- rowSums(counts(dds_AntiCD3_SensitiveVsND) >= 10) >= 5  # Smallest number of samples in a treatment group
+dds_AntiCD3_SensitiveVsND <- dds_AntiCD3_SensitiveVsND[keep, ]
+
+#Design Formula
+design(dds_AntiCD3_SensitiveVsND) <- ~ Day+Group
+dds_AntiCD3_SensitiveVsND <- DESeq(dds_AntiCD3_SensitiveVsND)
+resultsNames(dds_AntiCD3_SensitiveVsND)
+res_ResistantVsSensitive <- results(dds_AntiCD3_SensitiveVsND,
+                                    name = "Group_Sensitive_vs_Non.Diabetic")
+res_SensitiveVsND_AllTimepoints <- results(
+  dds_AntiCD3_SensitiveVsND,
+  name = "Group_Sensitive_vs_Non.Diabetic"
+)
+
+res_df <- as.data.frame(res_SensitiveVsND_AllTimepoints)
+
+deg_genes <- rownames(
+  subset(
+    res_df,
+    padj < 0.1 & abs(log2FoldChange) > 1
+  )
+)
+
+length(deg_genes)
