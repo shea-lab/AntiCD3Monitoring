@@ -2257,11 +2257,37 @@ object.list <- list(RO = cellChat_RO, aCD3 = cellChat_aCD3)
 cellchat_aCD3vsRO <- mergeCellChat(object.list, add.names = names(object.list), cell.prefix = TRUE)
 
 ### 1. Identify altered interactions and cell populations 
+# Define colors
+group.colors <- c( "#D62728","#333333")  # aCD3 = dark grey, RO = red
+gg1 <- compareInteractions(
+  cellchat_aCD3vsRO,
+  show.legend = FALSE,
+  group = c(1,2),
+  color.use = group.colors
+) +
+  theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14)
+  )
+
+gg2 <- compareInteractions(
+  cellchat_aCD3vsRO,
+  show.legend = FALSE,
+  group = c(1,2),
+  measure = "weight",
+  color.use = group.colors
+) +
+  theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14)
+  )
+
+gg1 + gg2
 
 par(mfrow = c(1,1), xpd=TRUE)
-netVisual_diffInteraction(cellchat_aCD3vsRO, weight.scale = T, measure = "weight", vertex.size.max = 5,vertex.label.cex = 2.2,top=0.25)
+netVisual_diffInteraction(cellchat_aCD3vsRO, weight.scale = T, measure = "weight", vertex.size.max = 5,vertex.label.cex = 2,top=0.25, arrow.size = 0.5)
 
-gg1 <- netVisual_heatmap(cellchat_aCD3vsRO, measure = "weight",font.size = 12, font.size.title = 18)
+gg1 <- netVisual_heatmap(cellchat_aCD3vsRO, measure = "weight",font.size = 11, font.size.title = 18)
 #> Do heatmap based on a merged object
 gg1
 
@@ -2307,11 +2333,40 @@ gg1 <- netAnalysis_signalingChanges_scatter(cellchat_aCD3vsRO, idents.use = "Mon
 gg1 #+ ggrepel::geom_text_repel(aes(label = labels))
 
 unique(cellchat_aCD3vsRO@meta$ident)
-### 2. Identify altered signaling with distinct interaction strength 
-gg1 <- rankNet(cellchat_aCD3vsRO, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = T, do.stat = TRUE)
-gg2 <- rankNet(cellchat_aCD3vsRO, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE)
+
+ptm = Sys.time()
+
+
+### 2. Identify altered signaling with distinct interaction strength
+
+gg1 <- rankNet(
+  cellchat_aCD3vsRO,
+  mode = "comparison",
+  measure = "weight",
+  stacked = TRUE,
+  do.stat = TRUE,
+  color.use = c("#D62728","#465A65")
+)+
+  theme(
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  )
+
+gg2 <- rankNet(
+  cellchat_aCD3vsRO,
+  mode = "comparison",
+  measure = "weight",
+  stacked = TRUE,
+  do.stat = TRUE,
+  color.use = c("#D62728","#465A65")
+)+
+  theme(
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  )
 
 gg1 + gg2
+
 
 ### 3.Compare outgoing (or incoming) signaling patterns associated with each cell population 
 library(ComplexHeatmap)
@@ -2390,6 +2445,592 @@ draw(ht1 + ht2, ht_gap = unit(0.5, "cm"))
 
 ### 4.Identify dysfunctional signaling by comparing the communication probabities
 netVisual_bubble(cellchat_aCD3vsRO, sources.use = 11, targets.use = c(3:7),  comparison = c(1, 2), angle.x = 45)
+
+# Pathway wise
+pathways.show <- c("MIF") 
+# Check which datasets contain the pathway
+present <- sapply(object.list, function(x) {
+  pathways.show %in% x@netP$pathways
+})
+
+present
+# Get maximum pathway-level communication probability
+# only from datasets containing the pathway
+weight.max <- max(
+  sapply(object.list[present], function(x) {
+    
+    idx <- which(x@netP$pathways == pathways.show)
+    
+    max(
+      x@netP$prob[, , idx],
+      na.rm = TRUE
+    )
+  }),
+  na.rm = TRUE
+)
+par(mfrow = c(1, length(object.list)), xpd = TRUE)
+
+for (i in seq_along(object.list)) {
+  
+  if (pathways.show %in% object.list[[i]]@netP$pathways) {
+    
+    # Pathway is present
+    netVisual_aggregate(
+      object.list[[i]],
+      signaling = pathways.show,
+      layout = "circle",
+      edge.weight.max = weight.max,
+      edge.width.max = 10,
+      signaling.name = paste(
+        pathways.show,
+        names(object.list)[i]
+      )
+    )
+    
+  } else {
+    
+    # Pathway is absent
+    plot.new()
+    
+    title(
+      main = paste(
+        pathways.show,
+        names(object.list)[i]
+      )
+    )
+    
+    text(
+      0.5, 0.5,
+      "Not detected",
+      cex = 1.4
+    )
+  }
+}
+
+
+netVisual_bubble(
+  cellchat_aCD3vsRO,
+  signaling = "CD40",
+  targets.use = "Monocytes/Macrophages",
+  comparison = c(1, 2),
+  angle.x = 45,
+  remove.isolate = FALSE
+)
+
+# Plot difference un barplots
+pathway_RO <- subsetCommunication(
+  object.list[["RO"]],
+  signaling ="CD40"
+)
+
+pathway_aCD3 <- subsetCommunication(
+  object.list[["aCD3"]],
+  signaling ="CD40"
+)
+pathway_RO_mac <- pathway_RO[
+  pathway_RO$target == "Monocytes/Macrophages",
+]
+
+pathway_aCD3_mac <- pathway_aCD3[
+  pathway_aCD3$target == "Monocytes/Macrophages",
+]
+pathway_RO_mac[, c("source", "target", "ligand", "receptor", "prob", "pval")]
+
+pathway_aCD3_mac[, c("source", "target", "ligand", "receptor", "prob", "pval")]
+unique(pathway_RO_mac$receptor)
+# Keep only most specific interactions
+RO_plot <- pathway_RO_mac %>%
+  filter(receptor == "ITGAM_ITGB2") %>% # Change receptr name as needed
+  select(source, prob) %>%
+  mutate(group = "RO")
+
+aCD3_plot <- pathway_aCD3_mac %>%
+  filter(receptor == "ITGAM_ITGB2") %>%
+  select(source, prob) %>%
+  mutate(group = "aCD3")
+
+pathway_plot <- bind_rows(RO_plot, aCD3_plot)
+
+ggplot(
+  pathway_plot,
+  aes(
+    x = prob,
+    y = reorder(source, prob),
+    fill = group
+  )
+) +
+  geom_col(
+    position = position_dodge(width = 0.8),
+    width = 0.7
+  ) +
+  labs(
+    x = "Communication probability",
+    y = NULL,
+    title = "CLEC-Klrb1a signaling to Macrophages",
+    fill = NULL
+  ) +
+  scale_fill_manual(
+    values = c(
+      "RO" = "#D62728",
+      "aCD3" = "black"
+    )
+  )  +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.y = element_text(size = 18),
+    axis.text.x = element_text(size = 18),
+    axis.title.x = element_text(size = 18),
+    plot.title = element_text(size = 26),
+    legend.text = element_text(size = 18)
+  )
+
+
+## Resistant vs Sensitive ----
+getwd()
+ptm = Sys.time()
+
+cellchat.E13 <- readRDS("/Users/suoqinjin/Library/CloudStorage/OneDrive-Personal/works/CellChat/tutorial/cellchat_embryonic_E13.rds")
+cellchat.E13 <- updateCellChat(cellchat.E13)
+#> Update slot 'var.features' from a vector to a list
+#> Warning in updateCellChat(cellchat.E13): The 'meta' data does not have a column
+#> named `samples`. We now add this column and all cells are assumed to belong to
+#> `sample1`!
+cellchat.E14 <- readRDS("/Users/suoqinjin/Library/CloudStorage/OneDrive-Personal/works/CellChat/tutorial/cellchat_embryonic_E14.rds")
+cellchat.E14 <- updateCellChat(cellchat.E14)
+#> Merge the following slots: 'data.signaling','images','net', 'netP','meta', 'idents', 'var.features' , 'DB', and 'LR'.
+cellChat_Sensitive <- readRDS( "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Mouse scRNA/CellChat/cellChat_Pancreas_Sensitive.rds")
+cellChat_Sensitive<-updateCellChat(cellChat_Sensitive)
+cellChat_Resistant <- readRDS("/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Mouse scRNA/CellChat/cellChat_Pancreas_Resistant.rds")
+cellChat_Resistant<-updateCellChat(cellChat_Resistant)
+unique(cellChat_Sensitive@idents)
+unique(cellChat_Resistant@idents)
+group.new = levels(cellChat_Sensitive@idents)
+cellChat_Resistant <- liftCellChat(cellChat_Resistant, group.new)
+
+# Define the cell labels to lift up by combining both cell labels from the conditions
+object.list <- list(Sensitive = cellChat_Sensitive, Resistant = cellChat_Resistant)
+cellchat_RvsS <- mergeCellChat(object.list, add.names = names(object.list), cell.prefix = TRUE)
+
+### 1. Identify altered interactions and cell populations 
+# Define colors
+group.colors <- c( "navyblue" , "darkred")  # aCD3 = dark grey, RO = red
+gg1 <- compareInteractions(
+  cellchat_RvsS,
+  show.legend = FALSE,
+  group = c(1,2),
+  color.use = group.colors
+) +
+  theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14)
+  )
+
+gg2 <- compareInteractions(
+  cellchat_RvsS,
+  show.legend = FALSE,
+  group = c(1,2),
+  measure = "weight",
+  color.use = group.colors
+) +
+  theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14)
+  )
+
+gg1 + gg2
+
+p <- gg1 + gg2
+
+ggsave(
+  filename = "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Figures/CellChat Results/ResistantvsSensitive/InteractionsStrengths.pdf",
+  plot = p,
+  width = 10,
+  height = 6,
+  units = "in"
+)
+
+par(mfrow = c(1,1), xpd=TRUE)
+pdf(
+  "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Figures/CellChat Results/ResistantvsSensitive/CellChat_diffInteraction_RvsS.pdf",
+  width = 12,
+  height = 10
+)
+
+netVisual_diffInteraction(
+  cellchat_RvsS,
+  weight.scale = TRUE,
+  measure = "weight",
+  vertex.size.max = 5,
+  vertex.label.cex = 2,
+  top = 0.25,
+  arrow.size = 0.5
+)
+
+dev.off()
+
+gg1 <- netVisual_heatmap(cellchat_RvsS, measure = "weight",font.size = 11, font.size.title = 18)
+#> Do heatmap based on a merged object
+gg1
+
+
+num.link <- sapply(object.list, function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
+weight.MinMax <- c(min(num.link), max(num.link)) # control the dot size in the different datasets
+gg3 <- list()
+for (i in seq_along(object.list)) {
+  p <- netAnalysis_signalingRole_scatter(
+    object.list[[i]],
+    title = names(object.list)[i],
+    weight.MinMax = weight.MinMax
+  ) +
+    xlim(0, 12) +
+    ylim(0, 21) +
+    theme(
+      plot.title = element_text(
+        size = 16,
+        face = "bold",
+        hjust = 0.5
+      ),
+      axis.title = element_text(
+        size = 14,
+        face = "bold"
+      ),
+      axis.text = element_text(size = 14),
+      legend.title = element_text(
+        size = 14,
+        face = "bold"
+      ),
+      legend.text = element_text(size = 14)
+    )
+  # Increase the cell-type label size in the existing CellChat layer
+  for (j in seq_along(p$layers)) {
+    if (inherits(p$layers[[j]]$geom, "GeomTextRepel")) {
+      p$layers[[j]]$aes_params$size <- 4
+    }
+  }
+  gg3[[i]] <- p
+}
+patchwork::wrap_plots(plots = gg3)
+
+gg1 <- netAnalysis_signalingChanges_scatter(cellchat_RvsS, idents.use = "Monocytes/Macrophages")
+gg1 #+ ggrepel::geom_text_repel(aes(label = labels))
+
+unique(cellchat_aCD3vsRO@meta$ident)
+
+ptm = Sys.time()
+
+
+### 2. Identify altered signaling with distinct interaction strength
+
+gg1 <- rankNet(
+  cellchat_RvsS,
+  mode = "comparison",
+  measure = "weight",
+  stacked = TRUE,
+  do.stat = TRUE,
+  color.use = c("darkred","navyblue")
+)+
+  theme(
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  )
+
+gg2 <- rankNet(
+  cellchat_RvsS,
+  mode = "comparison",
+  measure = "weight",
+  stacked = FALSE,
+  do.stat = TRUE,
+  color.use = c("darkred","navyblue")
+)+
+  theme(
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  )
+
+gg1 + gg2
+
+
+p2 <- gg1 + gg2
+p2
+ggsave(
+  filename = "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Figures/CellChat Results/ResistantvsSensitive/InformationFlow.pdf",
+  plot = p2,
+  width = 8,
+  height = 10,
+  units = "in"
+)
+### 3.Compare outgoing (or incoming) signaling patterns associated with each cell population 
+library(ComplexHeatmap)
+i = 1
+pathway.union <- unique(unlist(
+  lapply(object.list, function(x) x@netP$pathways)
+))
+
+#Outgoing
+i <- 1
+
+ht1_out <- netAnalysis_signalingRole_heatmap(
+  object.list[[i]],
+  pattern = "outgoing",
+  signaling = pathway.union,
+  title = paste0(names(object.list)[i], " — Outgoing"),
+  width = 10,
+  height = 18,
+  color.heatmap = "OrRd",
+  font.size = 11,
+  font.size.title = 14
+)
+
+ht2_out <- netAnalysis_signalingRole_heatmap(
+  object.list[[i + 1]],
+  pattern = "outgoing",
+  signaling = pathway.union,
+  title = paste0(names(object.list)[i + 1], " — Outgoing"),
+  width = 10,
+  height = 18,
+  color.heatmap = "OrRd",
+  font.size = 11,
+  font.size.title = 14
+)
+
+draw(
+  ht1_out + ht2_out,
+  ht_gap = unit(0.5, "cm")
+)
+
+#Incoming
+
+ht1_in <- netAnalysis_signalingRole_heatmap(
+  object.list[[i]],
+  pattern = "incoming",
+  signaling = pathway.union,
+  title = paste0(names(object.list)[i], " — Incoming"),
+  width = 10,
+  height = 18,
+  color.heatmap = "OrRd",
+  font.size = 11,
+  font.size.title = 14
+)
+
+ht2_in <- netAnalysis_signalingRole_heatmap(
+  object.list[[i + 1]],
+  pattern = "incoming",
+  signaling = pathway.union,
+  title = paste0(names(object.list)[i + 1], " — Incoming"),
+  width = 10,
+  height = 18,
+  color.heatmap = "OrRd",
+  font.size = 11,
+  font.size.title = 14
+)
+
+draw(
+  ht1_in + ht2_in,
+  ht_gap = unit(0.5, "cm")
+)
+
+# Combined
+ht1 = netAnalysis_signalingRole_heatmap(object.list[[i]], pattern = "all", signaling = pathway.union, title = names(object.list)[i], width = 10, height = 18, color.heatmap = "OrRd",font.size = 11,font.size.title = 14)
+ht2 = netAnalysis_signalingRole_heatmap(object.list[[i+1]], pattern = "all", signaling = pathway.union, title = names(object.list)[i+1], width = 10, height = 18, color.heatmap = "OrRd",font.size = 11,font.size.title = 14)
+draw(ht1 + ht2, ht_gap = unit(0.5, "cm"))
+
+### 4.Identify dysfunctional signaling by comparing the communication probabities
+netVisual_bubble(cellchat_RvsS, sources.use = 11, targets.use = c(3:7),  comparison = c(1, 2), angle.x = 45)
+
+# Pathway wise
+pathways.show <- c("Cypa") 
+# Check which datasets contain the pathway
+present <- sapply(object.list, function(x) {
+  pathways.show %in% x@netP$pathways
+})
+
+present
+# Get maximum pathway-level communication probability
+# only from datasets containing the pathway
+weight.max <- max(
+  sapply(object.list[present], function(x) {
+    
+    idx <- which(x@netP$pathways == pathways.show)
+    
+    max(
+      x@netP$prob[, , idx],
+      na.rm = TRUE
+    )
+  }),
+  na.rm = TRUE
+)
+par(mfrow = c(1, length(object.list)), xpd = TRUE)
+
+for (i in seq_along(object.list)) {
+  
+  if (pathways.show %in% object.list[[i]]@netP$pathways) {
+    
+    # Pathway is present
+    netVisual_aggregate(
+      object.list[[i]],
+      signaling = pathways.show,
+      layout = "circle",
+      edge.weight.max = weight.max,
+      edge.width.max = 10,
+      signaling.name = paste(
+        pathways.show,
+        names(object.list)[i]
+      )
+    )
+    
+  } else {
+    
+    # Pathway is absent
+    plot.new()
+    
+    title(
+      main = paste(
+        pathways.show,
+        names(object.list)[i]
+      )
+    )
+    
+    text(
+      0.5, 0.5,
+      "Not detected",
+      cex = 1.4
+    )
+  }
+}
+
+#---
+celltype <- "Monocytes/Macrophages"
+
+get_incoming <- function(cellchat, celltype) {
+  
+  pathways <- names(cellchat@netP$centr)
+  
+  vals <- sapply(pathways, function(pw) {
+    x <- cellchat@netP$centr[[pw]]$indeg
+    x[celltype]
+  })
+  
+  data.frame(
+    pathway = pathways,
+    incoming = as.numeric(vals)
+  )
+}
+incoming_1 <- get_incoming(
+  object.list[[1]],
+  celltype
+)
+
+incoming_2 <- get_incoming(
+  object.list[[2]],
+  celltype
+)
+
+names(incoming_1)[2] <- names(object.list)[1]
+names(incoming_2)[2] <- names(object.list)[2]
+mac_compare <- merge(
+  incoming_1,
+  incoming_2,
+  by = "pathway",
+  all = TRUE
+)
+
+mac_compare[is.na(mac_compare)] <- 0
+
+colnames(mac_compare) <- c(
+  "pathway",
+  "Sensitive",
+  "Resistant"
+)
+
+mac_compare$diff <- mac_compare$Resistant - mac_compare$Sensitive
+
+mac_compare$direction <- dplyr::case_when(
+  mac_compare$diff > 0 ~ "Higher incoming in Resistant",
+  mac_compare$diff < 0 ~ "Higher incoming in Sensitive",
+  TRUE ~ "No difference"
+)
+
+mac_compare <- mac_compare[
+  order(abs(mac_compare$diff), decreasing = TRUE),
+]
+
+head(mac_compare, 30)
+
+netVisual_bubble(
+  cellchat_RvsS,
+  signaling = "SIRP",
+  targets.use = "Monocytes/Macrophages",
+  comparison = c(1, 2),
+  angle.x = 45,
+  remove.isolate = FALSE
+)
+
+# Plot difference un barplots
+pathway_Sensitive <- subsetCommunication(
+  object.list[["Sensitive"]],
+  signaling ="SEMA4"
+)
+
+pathway_Resistant <- subsetCommunication(
+  object.list[["Resistant"]],
+  signaling ="SEMA4"
+)
+pathway_Sensitive_mac <- pathway_Sensitive[
+  pathway_Sensitive$target == "Monocytes/Macrophages",
+]
+
+pathway_Resistant_mac <- pathway_Resistant[
+  pathway_Resistant$target == "Monocytes/Macrophages",
+]
+pathway_Sensitive_mac[, c("source", "target", "ligand", "receptor", "prob", "pval")]
+
+pathway_Resistant_mac[, c("source", "target", "ligand", "receptor", "prob", "pval")]
+unique(pathway_Resistant_mac$receptor)
+# Keep only most specific interactions
+Sensitive_plot <- pathway_Sensitive_mac %>%
+  filter(receptor == "Plxnb2") %>% # Change receptr name as needed
+  select(source, prob) %>%
+  mutate(group = "Sensitive")
+
+Resistant_plot <- pathway_Resistant_mac %>%
+  filter(receptor == "Plxnb2") %>%
+  select(source, prob) %>%
+  mutate(group = "Resistant")
+
+pathway_plot <- bind_rows(Sensitive_plot, Resistant_plot)
+
+ggplot(
+  pathway_plot,
+  aes(
+    x = prob,
+    y = reorder(source, prob),
+    fill = group
+  )
+) +
+  geom_col(
+    position = position_dodge(width = 0.8),
+    width = 0.7
+  ) +
+  labs(
+    x = "Communication probability",
+    y = NULL,
+    title = "SEMA4-Plxnb2 signaling to Macrophages",
+    fill = NULL
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Sensitive" = "navyblue",
+      "Resistant" = "darkred"
+    )
+  )  +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.y = element_text(size = 18),
+    axis.text.x = element_text(size = 18),
+    axis.title.x = element_text(size = 18),
+    plot.title = element_text(size = 26),
+    legend.text = element_text(size = 18)
+  )
 
 
 # TCR Analysis Seq----
