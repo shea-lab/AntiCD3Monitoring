@@ -925,6 +925,7 @@ sum(table(mouse_aCD3_rev$celltype_refined)) == ncol(mouse_aCD3_rev)
 
 
 #  UMAP and Annontation for Whole Dataset ----
+cellchat_cols <- cellchat@netP$colors
 p <- DimPlot(
   mouse_aCD3_rev,
   reduction = "umap",
@@ -2025,6 +2026,371 @@ p_pancreas_blood <-
   theme_classic(base_size = 16)
 
 p_pancreas_blood
+
+#CellChat Analysis for pancreas----
+#packageVersion("rlang")
+BiocManager::install("BiocNeighbors")
+install.packages('NMF')
+devtools::install_github("jokergoo/circlize")
+library(glmGamPoi)
+devtools::install_github("jinworks/CellChat")
+library(CellChat)
+library(patchwork)
+options(stringsAsFactors = FALSE)
+#devtools::install_github('immunogenomics/presto')
+mouse_aCD3_rev@meta.data$
+mouse_aCD3_rev$samples<-mouse_aCD3_rev$MouseID
+unique(mouse_aCD3_rev$Group)
+aCD3_Pancreas <- subset(mouse_aCD3_rev, subset = (Group == "Sensitive" | Group=='Resistant') & Tissue == "Pancreas")
+RO_Pancreas <- subset(mouse_aCD3_rev, subset = Group == "Recent-Onset" & Tissue == "Pancreas")
+Sensitive_Pancreas <- subset(mouse_aCD3_rev, subset =  Group == "Sensitive" & Tissue == "Pancreas")
+Resistant_Pancreas <- subset(mouse_aCD3_rev, subset =  Group == "Resistant" & Tissue == "Pancreas")
+
+## ----All Anti-CD3------
+DefaultAssay(aCD3_Pancreas) <- "RNA"
+plan("sequential")
+aCD3_Pancreas <- NormalizeData(
+  object = aCD3_Pancreas,
+  assay = "RNA"
+)
+aCD3_Pancreas$samples <- factor(aCD3_Pancreas$samples)
+## Confirm the data layer now exists
+cellChat_aCD3  <- createCellChat(object = aCD3_Pancreas, group.by = "ident", assay = "RNA")
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+CellChatDB.use <- (CellChatDB)
+
+# set the used database in the object
+cellChat_aCD3@DB <- CellChatDB.use
+
+# subset the expression data of signaling genes for saving computation cost
+cellChat_aCD3 <- subsetData(cellChat_aCD3) # This step is necessary even if using the whole database
+
+library(future)
+options(future.globals.maxSize = 5e9)  # Set limit to 1GB (adjust based on available memory)
+future::plan("multisession", workers = 7) # do parallel
+cellChat_aCD3 <- identifyOverExpressedGenes(cellChat_aCD3)
+cellChat_aCD3 <- identifyOverExpressedInteractions(cellChat_aCD3)
+
+gc()  # Free up memory before running the next computation
+
+ptm = Sys.time()
+cellChat_aCD3 <- computeCommunProb(cellChat_aCD3, type = "triMean")
+cellChat_aCD3 <- filterCommunication(cellChat_aCD3, min.cells = 10)
+cellChat_aCD3 <- computeCommunProbPathway(cellChat_aCD3)
+cellChat_aCD3 <- aggregateNet(cellChat_aCD3)
+
+execution.time = Sys.time() - ptm
+print(as.numeric(execution.time, units = "secs"))
+ptm = Sys.time()
+groupSize <- as.numeric(table(cellChat_aCD3@idents))
+
+par(mfrow = c(1,1), xpd=TRUE)
+netVisual_circle(cellChat_aCD3@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength-aCD3 Treated")
+
+# Compute the network centrality scores
+cellChat_aCD3 <- netAnalysis_computeCentrality(cellChat_aCD3, slot.name = "netP") 
+
+getwd()
+cellChat_aCD3@meta$Group<-"aCD3"
+unique(cellChat_aCD3@meta$Group)
+saveRDS(cellChat_aCD3, file = "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Mouse scRNA/CellChat/cellChat_Pancreas_aCD3.rds")
+sessionInfo()
+
+## ----Sensitive-----
+## Create log-normalized RNA data layer
+DefaultAssay(Sensitive_Pancreas) <- "RNA"
+Sensitive_Pancreas <- NormalizeData(
+  object = Sensitive_Pancreas,
+  assay = "RNA"
+)
+Sensitive_Pancreas$samples <- factor(Sensitive_Pancreas$samples)
+## Confirm the data layer now exists
+cellChat_Sensitive  <- createCellChat(object = Sensitive_Pancreas, group.by = "ident", assay = "RNA")
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+CellChatDB.use <- (CellChatDB)
+
+# set the used database in the object
+cellChat_Sensitive@DB <- CellChatDB.use
+
+# subset the expression data of signaling genes for saving computation cost
+cellChat_Sensitive <- subsetData(cellChat_Sensitive) # This step is necessary even if using the whole database
+
+library(future)
+options(future.globals.maxSize = 5e9)  # Set limit to 1GB (adjust based on available memory)
+future::plan("multisession", workers = 7) # do parallel
+cellChat_Sensitive <- identifyOverExpressedGenes(cellChat_Sensitive)
+cellChat_Sensitive <- identifyOverExpressedInteractions(cellChat_Sensitive)
+
+gc()  # Free up memory before running the next computation
+
+ptm = Sys.time()
+cellChat_Sensitive <- computeCommunProb(cellChat_Sensitive, type = "triMean")
+cellChat_Sensitive <- filterCommunication(cellChat_Sensitive, min.cells = 10)
+cellChat_Sensitive <- computeCommunProbPathway(cellChat_Sensitive)
+cellChat_Sensitive <- aggregateNet(cellChat_Sensitive)
+
+execution.time = Sys.time() - ptm
+print(as.numeric(execution.time, units = "secs"))
+ptm = Sys.time()
+groupSize <- as.numeric(table(cellChat_Sensitive@idents))
+
+par(mfrow = c(1,1), xpd=TRUE)
+netVisual_circle(cellChat_Sensitive@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength-aCD3 Sensitive")
+
+# Compute the network centrality scores
+cellChat_Sensitive <- netAnalysis_computeCentrality(cellChat_Sensitive, slot.name = "netP") 
+
+getwd()
+saveRDS(cellChat_Sensitive, file = "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Mouse scRNA/CellChat/cellChat_Pancreas_Sensitive.rds")
+sessionInfo()
+
+## ----Resistant----
+## Create log-normalized RNA data layer
+DefaultAssay(Resistant_Pancreas) <- "RNA"
+Resistant_Pancreas <- NormalizeData(
+  object = Resistant_Pancreas,
+  assay = "RNA"
+)
+Resistant_Pancreas$samples <- factor(Resistant_Pancreas$samples)
+
+## Confirm the data layer now exists
+cellChat_Resistant  <- createCellChat(object = Resistant_Pancreas, group.by = "ident", assay = "RNA")
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+CellChatDB.use <- (CellChatDB)
+
+# set the used database in the object
+cellChat_Resistant@DB <- CellChatDB.use
+
+# subset the expression data of signaling genes for saving computation cost
+cellChat_Resistant <- subsetData(cellChat_Resistant) # This step is necessary even if using the whole database
+
+library(future)
+options(future.globals.maxSize = 5e9)  # Set limit to 1GB (adjust based on available memory)
+future::plan("multisession", workers = 7) # do parallel
+cellChat_Resistant <- identifyOverExpressedGenes(cellChat_Resistant)
+cellChat_Resistant <- identifyOverExpressedInteractions(cellChat_Resistant)
+
+gc()  # Free up memory before running the next computation
+
+ptm = Sys.time()
+cellChat_Resistant <- computeCommunProb(cellChat_Resistant, type = "triMean")
+cellChat_Resistant <- filterCommunication(cellChat_Resistant, min.cells = 10)
+cellChat_Resistant <- computeCommunProbPathway(cellChat_Resistant)
+cellChat_Resistant <- aggregateNet(cellChat_Resistant)
+
+execution.time = Sys.time() - ptm
+print(as.numeric(execution.time, units = "secs"))
+ptm = Sys.time()
+groupSize <- as.numeric(table(cellChat_Resistant@idents))
+par(mfrow = c(1,1), xpd=TRUE)
+netVisual_circle(cellChat_Resistant@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength-aCD3 Resistant")
+
+# Compute the network centrality scores
+cellChat_Resistant <- netAnalysis_computeCentrality(cellChat_Resistant, slot.name = "netP") 
+
+getwd()
+saveRDS(cellChat_Resistant, file = "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Mouse scRNA/CellChat/cellChat_Pancreas_Resistant.rds")
+sessionInfo()
+
+## ----Recent Onset----
+## Create log-normalized RNA data layer
+DefaultAssay(RO_Pancreas) <- "RNA"
+## Avoid exporting the large Seurat object to parallel workers
+plan("sequential")
+RO_Pancreas <- NormalizeData(
+  object = RO_Pancreas,
+  assay = "RNA"
+)
+RO_Pancreas$samples <- factor(RO_Pancreas$samples)
+
+## Confirm the data layer now exists
+cellChat_RO  <- createCellChat(object = RO_Pancreas, group.by = "ident", assay = "RNA")
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+CellChatDB.use <- (CellChatDB)
+
+# set the used database in the object
+cellChat_RO@DB <- CellChatDB.use
+
+# subset the expression data of signaling genes for saving computation cost
+cellChat_RO <- subsetData(cellChat_RO) # This step is necessary even if using the whole database
+
+library(future)
+options(future.globals.maxSize = 5e9)  # Set limit to 1GB (adjust based on available memory)
+future::plan("multisession", workers = 7) # do parallel
+cellChat_RO <- identifyOverExpressedGenes(cellChat_RO)
+cellChat_RO <- identifyOverExpressedInteractions(cellChat_RO)
+
+gc()  # Free up memory before running the next computation
+
+ptm = Sys.time()
+cellChat_RO <- computeCommunProb(cellChat_RO, type = "triMean")
+cellChat_RO <- filterCommunication(cellChat_RO, min.cells = 10)
+cellChat_RO <- computeCommunProbPathway(cellChat_RO)
+cellChat_RO <- aggregateNet(cellChat_RO)
+
+execution.time = Sys.time() - ptm
+print(as.numeric(execution.time, units = "secs"))
+ptm = Sys.time()
+groupSize <- as.numeric(table(cellChat_RO@idents))
+par(mfrow = c(1,1), xpd=TRUE)
+netVisual_circle(cellChat_RO@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength-Recent Onset")
+
+# Compute the network centrality scores
+cellChat_RO <- netAnalysis_computeCentrality(cellChat_RO, slot.name = "netP") 
+
+getwd()
+saveRDS(cellChat_RO, file = "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Mouse scRNA/CellChat/cellChat_Pancreas_RecentOnset.rds")
+sessionInfo()
+
+## RO vs aCD3 ----
+getwd()
+
+cellChat_aCD3 <- readRDS( "/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Mouse scRNA/CellChat/cellChat_Pancreas_aCD3.rds")
+cellChat_aCD3<-updateCellChat(cellChat_aCD3)
+cellChat_RO <- readRDS("/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Mouse scRNA/CellChat/cellChat_Pancreas_RecentOnset.rds")
+cellChat_RO<-updateCellChat(cellChat_RO)
+unique(cellChat_aCD3@idents)
+unique(cellChat_RO@idents)
+# Define the cell labels to lift up by combining both cell labels from the conditions
+
+object.list <- list(RO = cellChat_RO, aCD3 = cellChat_aCD3)
+cellchat_aCD3vsRO <- mergeCellChat(object.list, add.names = names(object.list), cell.prefix = TRUE)
+
+### 1. Identify altered interactions and cell populations 
+
+par(mfrow = c(1,1), xpd=TRUE)
+netVisual_diffInteraction(cellchat_aCD3vsRO, weight.scale = T, measure = "weight", vertex.size.max = 5,vertex.label.cex = 2.2,top=0.25)
+
+gg1 <- netVisual_heatmap(cellchat_aCD3vsRO, measure = "weight",font.size = 12, font.size.title = 18)
+#> Do heatmap based on a merged object
+gg1
+
+num.link <- sapply(object.list, function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
+weight.MinMax <- c(min(num.link), max(num.link)) # control the dot size in the different datasets
+gg3 <- list()
+for (i in seq_along(object.list)) {
+  p <- netAnalysis_signalingRole_scatter(
+    object.list[[i]],
+    title = names(object.list)[i],
+    weight.MinMax = weight.MinMax
+  ) +
+    xlim(0, 12) +
+    ylim(0, 21) +
+    theme(
+      plot.title = element_text(
+        size = 16,
+        face = "bold",
+        hjust = 0.5
+      ),
+      axis.title = element_text(
+        size = 14,
+        face = "bold"
+      ),
+      axis.text = element_text(size = 14),
+      legend.title = element_text(
+        size = 14,
+        face = "bold"
+      ),
+      legend.text = element_text(size = 14)
+    )
+  # Increase the cell-type label size in the existing CellChat layer
+  for (j in seq_along(p$layers)) {
+    if (inherits(p$layers[[j]]$geom, "GeomTextRepel")) {
+      p$layers[[j]]$aes_params$size <- 4
+    }
+  }
+  gg3[[i]] <- p
+}
+patchwork::wrap_plots(plots = gg3)
+
+gg1 <- netAnalysis_signalingChanges_scatter(cellchat_aCD3vsRO, idents.use = "Monocytes/Macrophages")
+gg1 #+ ggrepel::geom_text_repel(aes(label = labels))
+
+unique(cellchat_aCD3vsRO@meta$ident)
+### 2. Identify altered signaling with distinct interaction strength 
+gg1 <- rankNet(cellchat_aCD3vsRO, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = T, do.stat = TRUE)
+gg2 <- rankNet(cellchat_aCD3vsRO, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE)
+
+gg1 + gg2
+
+### 3.Compare outgoing (or incoming) signaling patterns associated with each cell population 
+library(ComplexHeatmap)
+i = 1
+pathway.union <- unique(unlist(
+  lapply(object.list, function(x) x@netP$pathways)
+))
+
+#Outgoing
+i <- 1
+
+ht1_out <- netAnalysis_signalingRole_heatmap(
+  object.list[[i]],
+  pattern = "outgoing",
+  signaling = pathway.union,
+  title = paste0(names(object.list)[i], " — Outgoing"),
+  width = 10,
+  height = 18,
+  color.heatmap = "OrRd",
+  font.size = 11,
+  font.size.title = 14
+)
+
+ht2_out <- netAnalysis_signalingRole_heatmap(
+  object.list[[i + 1]],
+  pattern = "outgoing",
+  signaling = pathway.union,
+  title = paste0(names(object.list)[i + 1], " — Outgoing"),
+  width = 10,
+  height = 18,
+  color.heatmap = "OrRd",
+  font.size = 11,
+  font.size.title = 14
+)
+
+draw(
+  ht1_out + ht2_out,
+  ht_gap = unit(0.5, "cm")
+)
+
+#Incoming
+
+ht1_in <- netAnalysis_signalingRole_heatmap(
+  object.list[[i]],
+  pattern = "incoming",
+  signaling = pathway.union,
+  title = paste0(names(object.list)[i], " — Incoming"),
+  width = 10,
+  height = 18,
+  color.heatmap = "OrRd",
+  font.size = 11,
+  font.size.title = 14
+)
+
+ht2_in <- netAnalysis_signalingRole_heatmap(
+  object.list[[i + 1]],
+  pattern = "incoming",
+  signaling = pathway.union,
+  title = paste0(names(object.list)[i + 1], " — Incoming"),
+  width = 10,
+  height = 18,
+  color.heatmap = "OrRd",
+  font.size = 11,
+  font.size.title = 14
+)
+
+draw(
+  ht1_in + ht2_in,
+  ht_gap = unit(0.5, "cm")
+)
+
+# Combined
+ht1 = netAnalysis_signalingRole_heatmap(object.list[[i]], pattern = "all", signaling = pathway.union, title = names(object.list)[i], width = 10, height = 18, color.heatmap = "OrRd",font.size = 11,font.size.title = 14)
+ht2 = netAnalysis_signalingRole_heatmap(object.list[[i+1]], pattern = "all", signaling = pathway.union, title = names(object.list)[i+1], width = 10, height = 18, color.heatmap = "OrRd",font.size = 11,font.size.title = 14)
+draw(ht1 + ht2, ht_gap = unit(0.5, "cm"))
+
+### 4.Identify dysfunctional signaling by comparing the communication probabities
+netVisual_bubble(cellchat_aCD3vsRO, sources.use = 11, targets.use = c(3:7),  comparison = c(1, 2), angle.x = 45)
+
 
 # TCR Analysis Seq----
 mouse_aCD3_rev<-readRDS("/Users/jyotirmoyroy/Desktop/Anti-CD3 Remission/Sequencing Data/Mouse scRNA/mouse_aCD3_filtered_v1.rds")
